@@ -34,8 +34,10 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static cd.go.contrib.elasticagents.dockerswarm.elasticagent.Constants.SWARM_SERVICE_NAME;
+import static cd.go.contrib.elasticagents.dockerswarm.elasticagent.DockerPlugin.LOG;
 import static cd.go.contrib.elasticagents.dockerswarm.elasticagent.utils.Util.dockerApiVersionAtLeast;
 import static java.lang.System.getenv;
+import static java.text.MessageFormat.format;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
@@ -64,6 +66,7 @@ public abstract class BaseTest {
             }
         }
         removeSecrets();
+        removeVolume();
     }
 
     private static void removeSecrets() throws Exception {
@@ -76,6 +79,25 @@ public abstract class BaseTest {
                     }
                 }
             });
+        } else {
+            LOG.warn(format("Detected docker version and api version is {0} and {1} respectively. Docker with api version 1.26 or above is required to use volume mounts, secrets and host file entries. Please referhttps://docs.docker.com/engine/api/v1.32/#section/Versioning for more information about docker release.", docker.version().version(), docker.version().apiVersion()));
+        }
+    }
+
+    private static void removeVolume() throws Exception {
+        if (dockerApiVersionAtLeast(docker, "1.26")) {
+            if (docker.listVolumes().volumes() != null) {
+                docker.listVolumes().volumes().forEach(volume -> {
+                    if (volume.labels() != null && volume.labels().containsKey("cd.go.contrib.elasticagents.dockerswarm.elasticagent.DockerPlugin")) {
+                        try {
+                            docker.removeVolume(volume.name());
+                        } catch (DockerException | InterruptedException e) {
+                        }
+                    }
+                });
+            }
+        } else {
+            LOG.warn(format("Detected docker version and api version is {0} and {1} respectively. Docker with api version 1.26 or above is required to use volume mounts, secrets and host file entries. Please refer https://docs.docker.com/engine/api/v1.32/#section/Versioning for more information about docker release.", docker.version().version(), docker.version().apiVersion()));
         }
     }
 
